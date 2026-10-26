@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6f6b">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Promise Jar</title>
+<style>
+:root{--bg:#eef2f0;--ink:#1d2b2a;--mute:#5b6b69;--card:#fff;--teal:#1f6f6b;--gold:#e0a526;--slate:#8c97a0;--line:#d5dedb}
+@media (prefers-color-scheme:dark){:root{--bg:#141c1b;--ink:#e6eeec;--mute:#93a5a2;--card:#1d2827;--line:#2e3d3b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 ui-rounded,"Avenir Next",system-ui,sans-serif;padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom)}
+main{max-width:480px;margin:0 auto;padding:20px 0 40px}
+h1{font:700 2rem/1.1 Georgia,serif;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 16px}
+.jar{display:block;width:100%;max-width:240px;margin:0 auto 4px}
+.stat{text-align:center;color:var(--mute);margin:0 0 20px}
+.stat b{color:var(--ink)}
+form{display:flex;flex-direction:column;gap:8px;margin-bottom:24px}
+input,select,button{font:inherit;border-radius:12px;border:1px solid var(--line);padding:12px;background:var(--card);color:var(--ink)}
+button{cursor:pointer}
+button.primary{background:var(--teal);color:#fff;border-color:var(--teal);font-weight:600}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+h2{font:700 1.1rem Georgia,serif;margin:0 0 8px}
+.item{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+.item p{margin:0 0 2px;font-weight:600}
+.due{color:var(--mute);font-size:.9rem;margin-bottom:8px}
+.due.late{color:#b4402f;font-weight:600}
+.row{display:flex;gap:8px}.row button{flex:1}
+.empty{color:var(--mute)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Promise Jar</h1>
+  <p class="sub">Make a small promise to yourself. Keep it and earn a gold marble.</p>
+  <svg class="jar" id="jar" viewBox="0 0 200 240" role="img" aria-label="Jar of marbles"></svg>
+  <p class="stat" id="stat"></p>
+  <form id="f">
+    <input id="t" placeholder="I promise to…" maxlength="80" required>
+    <select id="d" aria-label="Due in">
+      <option value="1">In 1 hour</option><option value="6">In 6 hours</option>
+      <option value="24" selected>Tomorrow</option><option value="168">In a week</option>
+    </select>
+    <button class="primary">Put promise in jar</button>
+  </form>
+  <h2>Open promises</h2>
+  <div id="list"></div>
+</main>
+<script>
+let P=[];
+try{P=JSON.parse(localStorage.getItem("pj")||"[]")}catch(e){}
+const save=()=>{try{localStorage.setItem("pj",JSON.stringify(P))}catch(e){}};
+const $=id=>document.getElementById(id);
+function left(ms){
+  const m=Math.round(Math.abs(ms)/6e4),h=Math.floor(m/60),d=Math.floor(h/24);
+  const s=d>=1?d+"d":h>=1?h+"h "+(m%60)+"m":m+"m";
+  return ms<0?"Overdue by "+s:"Due in "+s;
+}
+function render(){
+  const done=P.filter(p=>p.s), kept=done.filter(p=>p.s==="kept").length;
+  $("stat").innerHTML=done.length?`You kept <b>${kept}</b> of <b>${done.length}</b> promises (${Math.round(kept/done.length*100)}%)`:"No marbles yet. Make your first promise.";
+  let m='<path d="M60 20h80v18c0 8 22 16 22 40v136c0 12-10 22-22 22H60c-12 0-22-10-22-22V78c0-24 22-32 22-40z" fill="none" stroke="currentColor" stroke-width="4" opacity=".5"/>';
+  done.slice(-48).forEach((p,i)=>{
+    const c=i%6,r=Math.floor(i/6);
+    m+=`<circle cx="${58+c*17+(r%2)*8}" cy="${218-r*16}" r="8" fill="${p.s==="kept"?"#e0a526":"#8c97a0"}"/>`;
+  });
+  $("jar").innerHTML=m;
+  const open=P.filter(p=>!p.s).sort((a,b)=>a.due-b.due);
+  $("list").innerHTML=open.length?"":'<p class="empty">Nothing pending. Add a promise above.</p>';
+  open.forEach(p=>{
+    const ms=p.due-Date.now(),el=document.createElement("div");
+    el.className="item";
+    el.innerHTML=`<p></p><div class="due ${ms<0?"late":""}">${left(ms)}</div><div class="row"><button data-s="kept">I kept it</button><button data-s="broken">I broke it</button></div>`;
+    el.querySelector("p").textContent=p.t;
+    el.querySelectorAll("button").forEach(b=>b.onclick=()=>{p.s=b.dataset.s;save();render()});
+    $("list").appendChild(el);
+  });
+}
+$("f").onsubmit=e=>{
+  e.preventDefault();
+  P.push({t:$("t").value.trim(),due:Date.now()+$("d").value*36e5,s:null});
+  $("t").value="";save();render();
+};
+render();setInterval(render,6e4);
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
